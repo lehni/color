@@ -29,6 +29,7 @@ This release has an [MSRV][] of 1.86.
 - Parse the named colors spelled grey (`grey`, `darkgrey`, `dimgrey`, …). ([#231][] by [@lehni][])
 - Parse legacy `hsl()` with whitespace before its commas. ([#232][] by [@lehni][])
 - Reject legacy `rgb()` and `hsl()` that mix numbers and percentages, take numbers for saturation and lightness, or use `none`, as CSS does. (by [@lehni][])
+- Accept a color function left open at the end of the string, as CSS's parser closes it (`rgb(0, 255, 0`). (by [@lehni][])
 
 ## [0.3.3][] (2026-05-05)
 

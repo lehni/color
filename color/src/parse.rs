@@ -356,6 +356,17 @@ impl<'a> Parser<'a> {
         }
     }
 
+    /// The closing parenthesis of a color function, which the end of the string closes too, as
+    /// CSS's parser closes what's open there.
+    fn closing_parenthesis(&mut self) -> Result<(), ParseError> {
+        self.ws();
+        if self.ch(b')') || self.ix == self.s.len() {
+            Ok(())
+        } else {
+            Err(ParseError::ExpectedClosingParenthesis)
+        }
+    }
+
     fn optional_comma(&mut self, comma: bool) -> Result<(), ParseError> {
         self.ws();
         if comma && !self.ch(b',') {
@@ -386,10 +397,7 @@ impl<'a> Parser<'a> {
         }
         let [r, g, b] = [r, g, b].map(|c| c.scaled(1. / 255., 0.01).map(|x| x.clamp(0., 1.)));
         let alpha = self.alpha(mode)?;
-        self.ws();
-        if !self.ch(b')') {
-            return Err(ParseError::ExpectedClosingParenthesis);
-        }
+        self.closing_parenthesis()?;
         Ok(color_from_components([r, g, b, alpha], ColorSpaceTag::Srgb))
     }
 
@@ -430,10 +438,7 @@ impl<'a> Parser<'a> {
         let a = self.scaled_component(1., c)?;
         let b = self.scaled_component(1., c)?;
         let alpha = self.alpha(Mode::Modern)?;
-        self.ws();
-        if !self.ch(b')') {
-            return Err(ParseError::ExpectedClosingParenthesis);
-        }
+        self.closing_parenthesis()?;
         Ok(color_from_components([l, a, b, alpha], tag))
     }
 
@@ -447,10 +452,7 @@ impl<'a> Parser<'a> {
         let c = self.scaled_component(1., c)?.map(|x| x.max(0.));
         let h = self.angle()?;
         let alpha = self.alpha(Mode::Modern)?;
-        self.ws();
-        if !self.ch(b')') {
-            return Err(ParseError::ExpectedClosingParenthesis);
-        }
+        self.closing_parenthesis()?;
         Ok(color_from_components([l, c, h, alpha], tag))
     }
 
@@ -476,10 +478,7 @@ impl<'a> Parser<'a> {
         let s = s.scaled(1., 1.).map(|x| x.max(0.));
         let l = l.scaled(1., 1.);
         let alpha = self.alpha(mode)?;
-        self.ws();
-        if !self.ch(b')') {
-            return Err(ParseError::ExpectedClosingParenthesis);
-        }
+        self.closing_parenthesis()?;
         Ok(color_from_components([h, s, l, alpha], ColorSpaceTag::Hsl))
     }
 
@@ -491,10 +490,7 @@ impl<'a> Parser<'a> {
         let w = self.scaled_component(1., 1.)?;
         let b = self.scaled_component(1., 1.)?;
         let alpha = self.alpha(Mode::Modern)?;
-        self.ws();
-        if !self.ch(b')') {
-            return Err(ParseError::ExpectedClosingParenthesis);
-        }
+        self.closing_parenthesis()?;
         Ok(color_from_components([h, w, b, alpha], ColorSpaceTag::Hwb))
     }
 
@@ -523,10 +519,7 @@ impl<'a> Parser<'a> {
         let g = self.scaled_component(1., 0.01)?;
         let b = self.scaled_component(1., 0.01)?;
         let alpha = self.alpha(Mode::Modern)?;
-        self.ws();
-        if !self.ch(b')') {
-            return Err(ParseError::ExpectedClosingParenthesis);
-        }
+        self.closing_parenthesis()?;
         Ok(color_from_components([r, g, b, alpha], cs))
     }
 }
@@ -886,6 +879,22 @@ mod tests {
         ] {
             assert_err(invalid, ParseError::UnknownColorComponent);
         }
+    }
+
+    #[test]
+    fn unclosed() {
+        // The end of the string closes the function, as if it were closed:
+        for (unclosed, closed) in [
+            ("rgb(255, 0, 0", "rgb(255, 0, 0)"),
+            ("rgba(255 0 0 / 1", "rgba(255 0 0 / 1)"),
+            ("hsl(0 100% 50%  ", "hsl(0 100% 50%)"),
+            ("color(srgb 1 0 0", "color(srgb 1 0 0)"),
+        ] {
+            assert_close_color(parse_color(unclosed).unwrap(), parse_color(closed).unwrap());
+        }
+        // Not what comes before it:
+        assert_err("rgb(255, 0, 0 x", ParseError::ExpectedClosingParenthesis);
+        assert_eq!(parse_color_prefix("rgb(255 0 0").unwrap().0, 11);
     }
 
     #[test]
